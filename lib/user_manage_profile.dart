@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserManageProfile extends StatefulWidget {
-  final String userId; // Accept userId as a parameter
+  final String userId;
 
   const UserManageProfile({super.key, required this.userId});
 
@@ -10,18 +10,45 @@ class UserManageProfile extends StatefulWidget {
   State<UserManageProfile> createState() => _UserManageProfileState();
 }
 
-class _UserManageProfileState extends State<UserManageProfile> {
+class _UserManageProfileState extends State<UserManageProfile>
+    with SingleTickerProviderStateMixin {
   final TextEditingController emailController = TextEditingController();
-  final TextEditingController occupationController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
+  String? selectedOccupation; // For dropdown
 
   bool isLoading = false;
-  bool isEditing = false; // Track whether the user is in edit mode
+  bool isEditing = false;
+
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+
+  // Consistent color scheme from RegularUserHomePage
+  static const Color primaryGradientStart = Color(0xFFDAB894);
+  static const Color primaryGradientEnd = Color(0xFF5B7A6D);
+  static const Color textColor = Color(0xFF3A4F41);
+  static const Color backgroundColor = Color(0xFFF5F5F5);
+
+  // List of occupations for the dropdown
+  final List<String> occupations = [
+    'Engineer',
+    'Manager',
+    'Technician',
+    'Administrator',
+    'Other',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _fetchUserProfile(); // Fetch the user's profile when the page loads
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+    );
+    _animationController.forward();
+    _fetchUserProfile();
   }
 
   Future<void> _fetchUserProfile() async {
@@ -38,13 +65,16 @@ class _UserManageProfileState extends State<UserManageProfile> {
       if (doc.exists) {
         final data = doc.data()!;
         emailController.text = data['email'] ?? '';
-        occupationController.text = data['occupation'] ?? '';
+        selectedOccupation = data['occupation'] ?? 'Other';
         phoneController.text = data['phone'] ?? '';
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error fetching profile: $e')),
+        _showMessageDialog(
+          context,
+          title: 'Error',
+          message: 'Error fetching profile: $e',
+          isSuccess: false,
         );
       }
     }
@@ -58,42 +88,16 @@ class _UserManageProfileState extends State<UserManageProfile> {
 
   Future<void> saveProfile() async {
     final email = emailController.text.trim();
-    final occupation = occupationController.text.trim();
+    final occupation = selectedOccupation ?? 'Other';
     final phone = phoneController.text.trim();
 
-    // Validate email and phone number
     if (!email.contains('@') || !email.endsWith('.com')) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-    content: Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white, // ✅ Dark background like buttons
-        borderRadius: BorderRadius.circular(8), // ✅ Rounded corners
-        boxShadow: [ // ✅ Soft shadow effect
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: const Text(
-        'Invalid email format!',
-        style: TextStyle(
-          color: Colors.red, // ✅ White text for contrast
-          fontWeight: FontWeight.bold,
-          fontSize: 16,
-        ),
-      ),
-    ),
-    backgroundColor: Colors.transparent, // ✅ Remove default background
-    elevation: 0, // ✅ Remove default shadow
-    behavior: SnackBarBehavior.floating, // ✅ Make it float above UI
-    margin: const EdgeInsets.all(16), // ✅ Add spacing
-    duration: const Duration(seconds: 2), // ✅ Control duration
-  ),
+        _showMessageDialog(
+          context,
+          title: 'Error',
+          message: 'Invalid email format!, should include @ and .com',
+          isSuccess: false,
         );
       }
       return;
@@ -101,36 +105,11 @@ class _UserManageProfileState extends State<UserManageProfile> {
 
     if (!phone.startsWith('+60')) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-    content: Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white, // ✅ Dark background like buttons
-        borderRadius: BorderRadius.circular(8), // ✅ Rounded corners
-        boxShadow: [ // ✅ Soft shadow effect
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: const Text(
-        'Phone number should start from +60!',
-        style: TextStyle(
-          color: Colors.red, // ✅ White text for contrast
-          fontWeight: FontWeight.bold,
-          fontSize: 16,
-        ),
-      ),
-    ),
-    backgroundColor: Colors.transparent, // ✅ Remove default background
-    elevation: 0, // ✅ Remove default shadow
-    behavior: SnackBarBehavior.floating, // ✅ Make it float above UI
-    margin: const EdgeInsets.all(16), // ✅ Add spacing
-    duration: const Duration(seconds: 2), // ✅ Control duration
-  ),
+        _showMessageDialog(
+          context,
+          title: 'Error',
+          message: 'Phone number should start with +60!',
+          isSuccess: false,
         );
       }
       return;
@@ -144,192 +123,398 @@ class _UserManageProfileState extends State<UserManageProfile> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-    content: Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white, // ✅ Dark background like buttons
-        borderRadius: BorderRadius.circular(8), // ✅ Rounded corners
-        boxShadow: [ // ✅ Soft shadow effect
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: const Text(
-        'Profile updated successfully!',
-        style: TextStyle(
-          color: Colors.lightGreen, // ✅ White text for contrast
-          fontWeight: FontWeight.bold,
-          fontSize: 16,
-        ),
-      ),
-    ),
-    backgroundColor: Colors.transparent, // ✅ Remove default background
-    elevation: 0, // ✅ Remove default shadow
-    behavior: SnackBarBehavior.floating, // ✅ Make it float above UI
-    margin: const EdgeInsets.all(16), // ✅ Add spacing
-    duration: const Duration(seconds: 2), // ✅ Control duration
-  ),
+        _showMessageDialog(
+          context,
+          title: 'Success',
+          message: 'Profile updated successfully!',
+          isSuccess: true,
+          onClose: () {
+            setState(() {
+              isEditing = false;
+            });
+          },
         );
-
-        setState(() {
-          isEditing = false; // Exit edit mode
-        });
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-    content: Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white, // ✅ Dark background like buttons
-        borderRadius: BorderRadius.circular(8), // ✅ Rounded corners
-        boxShadow: [ // ✅ Soft shadow effect
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: const Text(
-        'Error saving profile!',
-        style: TextStyle(
-          color: Colors.red, // ✅ White text for contrast
-          fontWeight: FontWeight.bold,
-          fontSize: 16,
-        ),
-      ),
-    ),
-    backgroundColor: Colors.transparent, // ✅ Remove default background
-    elevation: 0, // ✅ Remove default shadow
-    behavior: SnackBarBehavior.floating, // ✅ Make it float above UI
-    margin: const EdgeInsets.all(16), // ✅ Add spacing
-    duration: const Duration(seconds: 2), // ✅ Control duration
-  ),
+        _showMessageDialog(
+          context,
+          title: 'Error',
+          message: 'Error saving profile: $e',
+          isSuccess: false,
         );
       }
     }
   }
 
-Widget _buildProfileRow({
-  required String label,
-  required TextEditingController controller,
-  bool isGrey = false,
-}) {
-  return Container(
-    color: isGrey ? Colors.grey[200] : Colors.white,
-    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        isEditing
-            ? SizedBox(
-                width: 200,
-                child: TextField(
-                  controller: controller,
-                  decoration: const InputDecoration(border: OutlineInputBorder()),
+  void _showMessageDialog(BuildContext context,
+      {required String title, required String message, required bool isSuccess, VoidCallback? onClose}) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: primaryGradientEnd.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(3, 3),
                 ),
-              )
-            : Text(
-                controller.text.isNotEmpty ? controller.text : '-',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [primaryGradientStart, primaryGradientEnd],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(15),
+                      topRight: Radius.circular(15),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (isSuccess) ...[
+                        const Icon(Icons.check_circle, color: Colors.white, size: 24),
+                        const SizedBox(width: 8),
+                      ],
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontFamily: 'NotoSansJP',
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 15),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Text(
+                    message,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: textColor,
+                      fontFamily: 'NotoSansJP',
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 15),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryGradientEnd,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    if (onClose != null) onClose();
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    child: Text(
+                      'Close',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontFamily: 'NotoSansJP',
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  TableRow _buildProfileRow({
+    required String label,
+    required TextEditingController controller,
+    bool isGrey = false,
+    bool isDropdown = false,
+  }) {
+    return TableRow(
+      decoration: BoxDecoration(
+        color: isGrey ? const Color(0xFFE0E0E0) : Colors.white,
+      ),
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12), // Increased padding
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: textColor,
+              fontFamily: 'NotoSansJP',
+              fontSize: 16, // Larger font
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12), // Increased vertical padding
+          child: isEditing && !isDropdown
+              ? ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 60), // Increased height for input fields
+                  child: TextField(
+                    controller: controller,
+                    style: const TextStyle(
+                      color: textColor,
+                      fontFamily: 'NotoSansJP',
+                      fontSize: 16, // Larger font
+                    ),
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(color: primaryGradientEnd, width: 1.5),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: primaryGradientEnd, width: 1.5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: textColor, width: 2),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16), // Increased padding
+                    ),
+                  ),
+                )
+              : isEditing && isDropdown
+                  ? ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 60), // Increased height for dropdown
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5), // Adjusted padding
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE0E0E0),
+                          border: Border.all(color: primaryGradientEnd, width: 1.5),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: DropdownButtonFormField<String>( // Changed to DropdownButtonFormField for consistency
+                          value: selectedOccupation,
+                          icon: const Icon(Icons.arrow_drop_down, color: textColor),
+                          style: const TextStyle(
+                            color: textColor,
+                            fontFamily: 'NotoSansJP',
+                            fontSize: 16, // Larger font
+                          ),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none, // Remove default border
+                            contentPadding: EdgeInsets.zero, // Align content properly
+                          ),
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              selectedOccupation = newValue!;
+                            });
+                          },
+                          items: occupations.map<DropdownMenuItem<String>>((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(
+                                value,
+                                style: const TextStyle(
+                                  color: textColor,
+                                  fontFamily: 'NotoSansJP',
+                                  fontSize: 16,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                          dropdownColor: const Color(0xFFE0E0E0),
+                          isExpanded: true,
+                        ),
+                      ),
+                    )
+                  : Text(
+                      isDropdown
+                          ? (selectedOccupation ?? '-')
+                          : (controller.text.isNotEmpty ? controller.text : '-'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                        fontFamily: 'NotoSansJP',
+                        fontSize: 16, // Larger font
+                      ),
+                    ),
+        ),
       ],
-    ),
-  );
-}
-
-
-
-
-
-
-
-
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[400],
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.grey[400],
+        backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
           'MANAGE PROFILE',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: textColor,
+            fontFamily: 'NotoSansJP',
+            fontSize: 20, // Larger font
+          ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: primaryGradientEnd))
           : Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[600],
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: const Center(
-                      child: Text(
-                        'User Detail',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [primaryGradientStart, primaryGradientEnd],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(8),
+                          topRight: Radius.circular(8),
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12), // Increased padding
+                      child: const Center(
+                        child: Text(
+                          'User Details',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            fontSize: 18, // Larger font
+                            fontFamily: 'NotoSansJP',
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  Container(
-  width: double.infinity,
-  decoration: BoxDecoration(
-    borderRadius: BorderRadius.circular(8),
-  ),
-  
-child: Column( // ✅ Corrected
-    children: [
-      _buildProfileRow(label: 'Email', controller: emailController),
-      _buildProfileRow(label: 'Phone Number', controller: phoneController, isGrey: true),
-      _buildProfileRow(label: 'Occupation', controller: occupationController),
-    ],
-  ),
-
-
-
-),
-
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: isEditing ? saveProfile : () => setState(() => isEditing = true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[800],
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(8),
+                          bottomRight: Radius.circular(8),
+                        ),
+                        border: const Border.fromBorderSide(
+                            BorderSide(color: primaryGradientEnd, width: 1.5)),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+                      child: Table(
+                        border: const TableBorder.symmetric(
+                            outside: BorderSide(color: primaryGradientEnd, width: 1.5)),
+                        columnWidths: const {
+                          0: FlexColumnWidth(1),
+                          1: FlexColumnWidth(2),
+                        },
+                        children: [
+                          _buildProfileRow(label: 'Email', controller: emailController),
+                          _buildProfileRow(
+                              label: 'Phone Number', controller: phoneController, isGrey: true),
+                          _buildProfileRow(
+                            label: 'Occupation',
+                            controller: TextEditingController(text: selectedOccupation),
+                            isDropdown: true,
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Text(
-                      isEditing ? 'Save Profile' : 'Edit Profile',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    const SizedBox(height: 30), // Increased spacing
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (isEditing) ...[
+                          ElevatedButton(
+                            onPressed: () {
+                              setState(() {
+                                isEditing = false;
+                              });
+                              _fetchUserProfile();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                side: const BorderSide(color: primaryGradientEnd, width: 2),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14), // Larger button
+                            ),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: textColor,
+                                fontSize: 18, // Larger font
+                                fontFamily: 'NotoSansJP',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        ElevatedButton(
+                          onPressed: isEditing
+                              ? saveProfile
+                              : () => setState(() => isEditing = true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryGradientEnd,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14), // Larger button
+                          ),
+                          child: Text(
+                            isEditing ? 'Save Profile' : 'Edit Profile',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              fontSize: 18, // Larger font
+                              fontFamily: 'NotoSansJP',
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 30), // Increased spacing
+                  ],
+                ),
               ),
             ),
     );
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    phoneController.dispose();
+    _animationController.dispose();
+    super.dispose();
   }
 }

@@ -1,0 +1,2 @@
+C:/Users/SCSM11/Documents/AssetInventoryApplication/assetinventoryapplication/android/app/.cxx/RelWithDebInfo/i6r5q4f6/x86_64/CMakeFiles/edit_cache.dir
+C:/Users/SCSM11/Documents/AssetInventoryApplication/assetinventoryapplication/android/app/.cxx/RelWithDebInfo/i6r5q4f6/x86_64/CMakeFiles/rebuild_cache.dir
