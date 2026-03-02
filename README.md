@@ -1,6 +1,6 @@
 # Asset Inventory Application 📦
 
-A Flutter-based solution for managing organizational assets, featuring a dual-role access system for Administrators and Regular Users.
+Hi, this is my Final Year Project that using Flutter-based solution for managing organizational assets, featuring a dual-role access system for Administrators and Regular Users.
 
 ## 🚀 Key Features
 Role-Based Access Control: Distinct functionalities for Admin and Regular User roles.
